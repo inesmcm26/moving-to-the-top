@@ -1,2 +1,2 @@
-*.Rmd linguist-detectable=true
-SongsPopularity.Rmd -linguist-detectable
+*.Rmd linguist-language=R
+*.nb.html linguist-vendored
