@@ -1,0 +1,387 @@
+---
+title: "SongPopularity.Rmd"
+output:
+  html_document: default
+  pdf_document: default
+date: '2023-01-20'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Are danceable songs more popular?
+
+### Introduction
+
+The purpose of this study is to understand if songs that are easier to dance become more popular.
+
+The data set used to conduct this study compiles information about the songs that were on the top 100 from Spotify, registered between 2010 and 2019. Some of the songs were on the top of multiple years, therefore the duplicate information was removed since the goal of the study does not include a temporal analysis. For this reason, the variable *top_year* was also not used for the study.
+
+There was also some pre processing that needed to be done before proceeding with the analysis. Using external sources, the original *artist type* column on the original data set was converted to dummies *solo* and *group*, as well as the column *top genre*, which was also dummified into 5 categories. All the songs that did not fall into one of these categories were included in the *other* category. The data set counts with 751 instances and 22 attributes. The description of each attribute can be find below.
+
+-   *title*: Song's title
+-   *artist*: Name of the artist
+-   *bpm*: Beats per minute - the tempo of the song
+-   *nrgy*: How energetic the song is ranging from 0 to 100
+-   *dnce*: How easy it is to dance the song ranging from 0 to 100
+-   *dB*: How loud the song is in dB
+-   *live*: How likely the song is a live recording
+-   *val*: How positive a song is ranging from 0 to 100
+-   *dur*: Duration of the song
+-   *acous*: How acoustic the song is ranging from 0 to 100
+-   *spch*: How focused on the spoken word the song is
+-   *top_year*: Year the song was a top hit
+-   *pop*: Dummy for 'pop' music genre
+-   *rock*: Dummy for 'rock' music genre
+-   *hip_hop*: Dummy for 'hip hop' music genre
+-   *rap*: Dummy for 'rap' music genre
+-   *other*: Dummy for other music genre
+-   *solo*: Dummy for solo song
+-   *group*: Dummy for group song
+-   *popularity*: Popularity of the song (not a ranking)
+
+The variables *title* and *artist* were excluded from the analysis given they do not provide any additional information about the question in study.
+
+### Import of the Data Set
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(car)
+library(lmtest)
+
+songs = read.csv("TopSpotifySongs.csv")
+
+head(songs, 10)
+```
+
+Number of news articles instances:
+
+```{r}
+nrow(songs)
+```
+
+### Correlation between variables
+
+To begin with, the correlation between all non dummy variables is analyzed. The purpose of this investigation involves assessing how correlated are the independent variables with the target. This is important because it can provide insights useful for the model building process. Furthermore, it is also important to check if there are highly correlated predictors, seeing that it can lead to multicollinearity, therefore causing problems with the model estimation.
+
+```{r correlation}
+
+cor(songs[,c('popularity', 'bpm', 'nrgy', 'dnce', 'dB', 'live', 'val', 'dur', 'acous', 'spch')])
+```
+
+Some variables appear to be moderately correlated with the target *popularity*, which indicates that those could be good linear predictors of that variable, especially *nrgy*, *dnce*, *dB*, *live* and *acous*. Furthermore, there are two highly correlated independent variables: *nrgy* and *dB*, most likely because the decibel levels can contribute to a song's overall energy by making it feel more intense and upbeat. This situation is not ideal given these estimators variances are likely to be inflated, resulting in a decrease in the significance levels of the estimates. This problem will be addressed later on.
+
+### 2D plots
+
+After understanding if the non dummy variables are correlated, the next step is to assess how they are correlated. This is a crucial step seeing that the previously measured correlation only reflects linear relationships and that might not be the best way of modeling the relationship between each predictor and the target variable.
+
+#### *bpm*
+
+```{r}
+p <- ggplot(songs, aes(x=bpm, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+The plot resembles a linear relationship.
+
+#### *nrgy*
+
+```{r}
+p <- ggplot(songs, aes(x=nrgy, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+Once more, it is possible to se a linear relationship.
+
+#### *dnce*
+
+```{r}
+p <- ggplot(songs, aes(x=dnce, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+Again, a linear relationship.
+
+#### *dB*
+
+```{r}
+p <- ggplot(songs, aes(x=dB, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+#### *live*
+
+```{r}
+p <- ggplot(songs, aes(x=live, y=popularity)) + geom_point() + theme_minimal()
+p
+```
+
+This plot resembles a kind of logarithmic relationship. Let's try a log transformation on the independent variable.
+
+```{r}
+p <- ggplot(songs, aes(x=log(live), y=popularity)) + geom_smooth(method = 'lm', se=FALSE) + geom_point() + theme_minimal()
+p
+```
+
+This results in a apparently more linear relationship.
+
+#### *val*
+
+```{r}
+p <- ggplot(songs, aes(x=val, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+Observations don't show any pattern.
+
+#### *dur*
+
+```{r}
+p <- ggplot(songs, aes(x=dur, y=popularity)) + geom_smooth(method = 'lm', se=FALSE)+ geom_point()+ theme_minimal()
+p
+```
+
+Observations are uniformly distributed in space.
+
+#### *acous*
+
+```{r}
+p <- ggplot(songs, aes(x=acous, y=popularity)) + geom_point() + geom_smooth(method = 'lm', formula = y ~ log(x+1), se=FALSE) + theme_minimal()
+p
+```
+
+The relationship between these two variables seems logarithmic. Let0s apply a log transformation on *acous*.
+
+```{r}
+p <- ggplot(songs, aes(x=log(acous + 1), y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+The transformation resulted on a more linear relationship.
+
+#### *spch*
+
+```{r}
+p <- ggplot(songs, aes(x=spch, y=popularity)) + geom_point() + geom_smooth(method = 'lm', se=FALSE) + theme_minimal()
+p
+```
+
+After examining the plots and the original correlations with the target it is possible to conclude that the variables *val*, *dur* and *spch* are not relevant for the analysis. The popularity of songs across these variables seems to be uniformly distributed, therefore they do not provide insights to better understand the reasons behind a song's popularity.
+
+### Summary of the possible transformations
+
+After analyzing the previous plots, it seems reasonable that the best way of modeling the relationship between the target variable and the predictors is not always the level-level relationship. A summary of the possible best transformations for each variable is presented below.
+
+| Predictors | *Shares* transformation | Predictor transformation |
+|:----------:|:-----------------------:|:------------------------:|
+|   *bpm*    |          None           |           None           |
+|   *nrgy*   |          None           |           None           |
+|   *dnce*   |          None           |           None           |
+|    *db*    |          None           |           None           |
+|   *live*   |           Log           |           None           |
+|  *acous*   |           Log           |           None           |
+
+With this table it is possible to see that the functional forms that are most likely the ones that best model the relationship between the target and the regressors are: a level-level, a level-log or, finally, a mix of the previous ones, counting with a log transformation on only some of the regressors.
+
+In the next stage, all these functional forms will be tested. For all the models, both *other* and *group* are the omitted default dummy variables.
+
+### Level-Level Estimation
+
+```{r}
+level_level_reg = lm(popularity ~ bpm + nrgy + dnce + dB + live + acous + pop + rock + hip_hop + rap + solo, data = songs)
+
+summary(level_level_reg)
+```
+
+### Level-log Estimation
+
+```{r}
+level_log_reg = lm(popularity ~ log(bpm) + log(nrgy) + log(dnce) + dB + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + solo, data = songs)
+
+summary(level_log_reg)
+```
+
+### Mixed forms estimation
+
+```{r}
+mixed_reg = lm(popularity ~ bpm + nrgy + dnce + dB + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + solo, data = songs)
+
+summary(mixed_reg)
+```
+
+After examining the p-values of all functional form specifications, it is possible to say that all of them present similar low p-values for the majority of the variables. Having low p-values is desirable given that these values mirror the individual statistical significance of the predictors: the lower the p-value, the more important the predictor is to the model. However, after careful examination, the one that presents the general smaller p-values is the the specification with the logarithmic transformations only on *live* and *acous*, and this is the model that will be used on the rest of the analysis.
+
+### Remove highly correlated predictors
+
+```{r}
+cor(songs[,c('popularity', 'bpm', 'nrgy', 'dnce', 'dB', 'live', 'val', 'dur', 'acous', 'spch')])
+```
+
+Now that some models have been tested it is time to further analyze highly correlated predictors. The variable *dB* is highly correlated with *nrgy* and it is the one with highest p-value, therefore it is the least important. Let's estimate the model again without this variable.
+
+```{r}
+mixed_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + solo, data = songs)
+
+summary(mixed_reg)
+
+```
+
+It is possible to confirm that the standard error of *nrgy* has decreased, as well as its p-value, therefore becoming now significant to the model. Furthermore, the majority of the other variables p-values has also decreased a little.
+
+Although removing highly correlated variables from the model may result in biased estimates because of the violation of the OLS zero conditional mean assumption, the decision to remove or keep these variables is always a trade off. In this case the overall estimates become more significant, as well as the R-squared, therefore the decision taken is to not process with the inclusion of *dB* in the model.
+
+### Removal of not significant variables
+
+The dummy variable *solo* estimate presents a fairly high p-value, meaning that the variable is not statistically significant in explaining the outcome of the model. There is a high probability that the relationship between the variable and the target is due to chance. In this case, it is not be worth keeping the variable in the model as it does not provide any meaningful information.
+
+### Test for the presence of heteroskedasticity
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap, data = songs)
+
+summary(final_reg)
+```
+
+#### Breusch-Pagan test
+
+```{r echo = FALSE}
+
+bptest(final_reg)
+```
+
+#### White-Special
+
+```{r}
+bptest(final_reg, ~I(fitted(final_reg)) + I(fitted(final_reg)^2))
+# p-value = 0.1404 -> we do not reject the null hypothesis at a 90% significance level
+```
+
+Both tests indicate that there is evidence of heteroskedasticity. This means that the variance of the residuals is not constant across the values of the predictors, which may be causing biased and inefficient estimators.
+
+Knowing this, the problem can not be left unaddressed. Therefore, it is necessary to use a robust OLS estimator.
+
+### Robust estimator
+
+```{r}
+coeftest(final_reg, vcov = hccm)
+```
+
+The robust estimates show higher p-values, consequently becoming less significant. However, this is needed to have good and reliable estimates robust to the presence of heteroskedasticity ans whose variances are not biased.
+
+### Functional form misspecifications
+
+```{r}
+reset(final_reg, vcov = hccm)
+```
+
+The RESET test is used to check if if non-linear functions of the independent variables are significant when added to the model. The null hypothesis states that the coefficient of all non-linear functions of the independent variables equals zero. The result of the test leads to a rejection of the null hypothesis ate a 1% significance level, therefore we are in the presence of a functional form misspecification.
+
+To address this issue, let's try to add some new variables to the model:
+
+### Interactions
+
+```{r}
+
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(bpm * rock), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rock), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rap), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+### Exponents
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(dnce^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(dnce^2) + I(nrgy^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+#### Multiple functions together
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rock) + I(bpm * rock) + I(log(live) * rap) + I(dnce^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+Let's try without log(*live*) \**rap*
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rock) + I(bpm * rock) + I(dnce^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+Better, but what if *bpm*\**rock* is removed?
+
+```{r}
+final_reg = lm(popularity ~ bpm + nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rock) + I(dnce^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+It looks like the best model until now. However, *bpm* has become insignificant for the model. What happens if it is removed?
+
+```{r}
+final_reg = lm(popularity ~ nrgy + dnce + log(live) + log(acous + 1) + pop + rock + hip_hop + rap + I(log(live) * rock) + I(dnce^2), data = songs)
+
+coeftest(final_reg, vcov = hccm)
+```
+
+To get the R-squared:
+
+```{r}
+summary(final_reg)
+```
+
+```{r}
+reset(final_reg, vcov = hccm)
+```
+
+After including two functions, the p-value of RESET test becomes not significant at a 5% level. This means that we do not reject the null hypothesis, therefore there is not a functional form misspecification anymore.
+
+With this final model in mind it now possible to make conclusions about the analysis.
+
+### Conclusions
+
+A table summarizing the impacts of each variable on the target can be found below.
+
+| Regressor |                                                                                      *Popularity*                                                                                       |
+|:---------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|  *nrgy*   |                                              1 percentage point increase in *nrgy* results in less 0.0615 percentage points in popularity                                               |
+|  *dnce*   |                                     1 percentage point increase in *dnce* results in (0.81 - 0.00523*dnce*) percentage points change in popularity                                      |
+|  *live*   | 1% increase in *live* results in less 0.0091 percentage points in popularity, when the song is not rock. When it is a rock song, the decrease of 0.064 percentage points in popularity. |
+|  *acous*  |                                              1 percentage point increase in *acous* results in more 0.0064 percentage points in popularity                                              |
+|   *pop*   |                                              *pop* songs are 1.54 percentage points more popular than songs belonging the category *other*                                              |
+|  *rock*   |                                             *rock* songs are 20.18 percentage points more popular than songs belonging the category *other*                                             |
+| *hip_hop* |                                               *hip_hop* songs are 3.33 percentage points more popular than songs on the category *other*                                                |
+|   *rap*   |                                                 *rap* songs are 2.89 percentage points more popular than songs on the category *other*                                                  |
+
+Regarding the central variable of the research question 'Are danceable songs more popular?', given we have the quadratic of variable *dance* in the model and knowing that the coefficient of that quadratic element is negative, it is possible to infer that the popularity increases along with danceability up to a certain point. The turning point is at `0.81-0.005623x = 0 <=> x = 144`. However, the danceability of the song ranges from 0 to 100, therefore the popularity of the song always increases with its suitability for dancing in a quadratic way, instead of a linear one.
+
+Both the estimates of *dnce* and *dnce\^2* are significant at a 1% level, hence there is evidence that songs that easier to dance tend to become more popular.
+
+```{r fig.width=5,fig.height=5}
+ggplot(songs, aes(x=dnce, y=popularity)) + geom_smooth(method = 'lm', formula = y ~ x + I(x^2),  se=FALSE) + geom_point() + theme_minimal()
+```
+
+Project developed by: Inês Magessi r20220590
